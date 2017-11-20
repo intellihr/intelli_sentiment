@@ -41,7 +41,20 @@ class SentenceAnalyzer:
     def analyze(self):
         i = 0
         while i < len(self.text):
-            # 1) check if contractive phrases
+            # 1) resolve long phrases first
+            phrase_score, length, corrections = self._add_phrase_sentiment(i)
+            if phrase_score is not False:
+                self._sentiments.append(
+                    dict(
+                        score=phrase_score,
+                        pos=i,
+                        length=length,
+                        corrections=corrections,
+                        type=TokenType.MATCH))
+                i += length
+                continue
+
+            # 2) check if contractive phrases
             is_contractive, length, corrections = self._check_contractive(i)
             if is_contractive:
                 self._sentiments.append(
@@ -53,7 +66,7 @@ class SentenceAnalyzer:
                 i += length
                 continue
 
-            # 2) check if it is negate phrase
+            # 3) check if it is negate phrase
             is_negate, length, corrections = self._check_negate(i)
             if is_negate:
                 self._sentiments.append(
@@ -65,7 +78,7 @@ class SentenceAnalyzer:
                 i += length
                 continue
 
-            # 3) check if it contains booster phrase
+            # 4) check if it contains booster phrase
             booster_score, length, corrections = self._check_booster(i)
             if booster_score is not False:
                 self._sentiments.append(
@@ -75,19 +88,6 @@ class SentenceAnalyzer:
                         corrections=corrections,
                         booster=booster_score,
                         type=TokenType.BOOSTER))
-                i += length
-                continue
-
-            # 4) resolve long phrases first
-            phrase_score, length, corrections = self._add_phrase_sentiment(i)
-            if phrase_score is not False:
-                self._sentiments.append(
-                    dict(
-                        score=phrase_score,
-                        pos=i,
-                        length=length,
-                        corrections=corrections,
-                        type=TokenType.MATCH))
                 i += length
                 continue
 
