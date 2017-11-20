@@ -1,6 +1,7 @@
 import os
 import csv
-from itertools import chain
+from collections import defaultdict
+
 
 NEGATES = [
     "neither", "hasnt", "havent", "hasn't", "haven't", "never", "none", "nope",
@@ -25,21 +26,19 @@ class Lexicon():
     def __init__(self):
         self._lexicon = None
         self.boosters = None
+        self.phrases = None
         self.negates = set(NEGATES)
         self.negate_verbs = set(NEGATE_VERBS)
         self.contractives = set(CONTRACTIVES)
-        self._words = set()
+        self._words = defaultdict(set)
 
     def load(self,
              lexicon_file='vader_lexicon.txt',
-             boosters_file='boosters.txt'):
+             boosters_file='boosters.txt',
+             phrases_file='phrases.txt'):
         self._lexicon = self._load_csv(lexicon_file)
         self.boosters = self._load_csv(boosters_file)
-
-        for phrase in chain(self.boosters.keys(), self.contractives,
-                            self.negates, self.negate_verbs):
-            for word in phrase.split():
-                self._words.add(word)
+        self.phrases = self._load_csv(phrases_file)
 
     def lookup(self, word):
         return self._lexicon.get(word)
@@ -49,9 +48,6 @@ class Lexicon():
 
     def lookup_booster(self, word):
         return self.boosters.get(word)
-
-    def contains_word(self, word):
-        return self.contains(word) or word in self._words
 
     def _load_csv(self, csv_file):
         file_path = os.path.join(
@@ -64,7 +60,6 @@ class Lexicon():
                 result[word] = float(score)
 
         return result
-
 
 lexicon = Lexicon()
 lexicon.load()

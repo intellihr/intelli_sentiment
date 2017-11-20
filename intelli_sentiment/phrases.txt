@@ -1,0 +1,9 @@
+at least	0
+bad ass	1.5
+cut the mustard	2
+hand to mouth	-2
+kiss of death	-1.5
+the bomb	3
+the shit	3
+very least	0
+yeah right	-2

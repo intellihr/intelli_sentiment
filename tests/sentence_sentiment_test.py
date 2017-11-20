@@ -50,6 +50,19 @@ def test_spell_correct():
     assert s1 > s2
 
 
+def test_phrases():
+    assert_neg('it is kiss of death!')
+    assert_neg('it is kiss of deaht!')
+    assert_pos('he is the shit!')
+
+
+def test_least():
+    assert_neg('he is the least cool man!')
+    assert_neu('feed him at least!')
+    assert_neu('feed him very least!')
+    assert_neu('feed him at very least!')
+
+
 def assert_pos(text):
     scores = sentence_sentiment(text)
     assert scores.compound > 0

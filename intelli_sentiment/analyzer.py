@@ -41,16 +41,15 @@ class SentenceAnalyzer:
     def analyze(self):
         i = 0
         while i < len(self.text):
-            # 1) check if it contains booster phrase
-            booster_score, length, corrections = self._check_booster(i)
-            if booster_score is not False:
+            # 1) check if contractive phrases
+            is_contractive, length, corrections = self._check_contractive(i)
+            if is_contractive:
                 self._sentiments.append(
                     dict(
                         score=0,
                         pos=i,
                         corrections=corrections,
-                        booster=booster_score,
-                        type=TokenType.BOOSTER))
+                        type=TokenType.CONTRACTIVE))
                 i += length
                 continue
 
@@ -66,19 +65,31 @@ class SentenceAnalyzer:
                 i += length
                 continue
 
-            # 3) check if contractive phrases
-            is_contractive, length, corrections = self._check_contractive(i)
-            if is_contractive:
+            # 3) check if it contains booster phrase
+            booster_score, length, corrections = self._check_booster(i)
+            if booster_score is not False:
                 self._sentiments.append(
                     dict(
                         score=0,
                         pos=i,
                         corrections=corrections,
-                        type=TokenType.CONTRACTIVE))
+                        booster=booster_score,
+                        type=TokenType.BOOSTER))
                 i += length
                 continue
 
-            # TODO: deal with phrases
+            # 4) resolve long phrases first
+            phrase_score, length, corrections = self._add_phrase_sentiment(i)
+            if phrase_score is not False:
+                self._sentiments.append(
+                    dict(
+                        score=phrase_score,
+                        pos=i,
+                        length=length,
+                        corrections=corrections,
+                        type=TokenType.MATCH))
+                i += length
+                continue
 
             self._add_word_sentiment(i)
             i += 1
@@ -138,7 +149,8 @@ class SentenceAnalyzer:
         word = self.text[current]
 
         if word.pos_ in [
-            'SPACE', 'ADP', 'CONJ', 'CCONJ', 'DET', 'NUM', 'PART', 'SCONJ', 'X'
+                'SPACE', 'ADP', 'CONJ', 'CCONJ', 'DET', 'NUM', 'PART', 'SCONJ',
+                'X', 'PRON'
         ]:
             return
 
@@ -174,6 +186,38 @@ class SentenceAnalyzer:
                     pos=current,
                     corrections=corrections,
                     type=TokenType.MATCH))
+
+    def _add_phrase_sentiment(self, current):
+        found = False
+        length = 0
+        corrections = None
+        score = None
+
+        for phrase, _score in lexicon.phrases.items():
+            found, length, corrections = self._match_next(current, phrase)
+            if found:
+                score = _score
+                break
+
+        if not found:
+            return (False, 0, corrections)
+
+        # boost if word is upper case
+        has_upper = any(w.is_upper
+                        for w in self.text[current:current + length])
+        if self.is_cap_diff and has_upper:
+            if score >= 0:
+                score += C_INCR
+            else:
+                score -= C_INCR
+
+        # apply boosters
+        score = self._apply_previous_boosters(current, score)
+
+        # apply negate
+        score = self._apply_previous_negate(current, score)
+
+        return (score, length, corrections)
 
     def _apply_previous_boosters(self, current, score):
         lookup_limit = 3
@@ -263,17 +307,21 @@ class SentenceAnalyzer:
         if not word.is_oov or word.is_punct:
             return (word, None)
 
-        if word.lower_ in hints or lexicon.contains_word(word.lower_) or \
-            word.lemma_ in hints or lexicon.contains_word(word.lemma_):
+        if hints and (word.lower_ in hints or word.lemma_ in hints):
+            return (word, None)
+        elif not hints and (lexicon.contains(word.lower_)
+                            or lexicon.contains(word.lemma_)):
             return (word, None)
 
         # attempt word correction
         corrected_words = (spell(word.lower_), spell(word.lemma_))
-        if word.lower_ != corrected_words[0] and (
-                corrected_words[0] in hints or corrected_words[1] in hints
-                or lexicon.contains_word(corrected_words[0])
-                or lexicon.contains_word(corrected_words[1])):
-            return (word, corrected_words)
+        if word.lower_ != corrected_words[0]:
+            if hints and (corrected_words[0] in hints
+                          or corrected_words[1] in hints):
+                return (word, corrected_words)
+            elif not hints and (lexicon.contains(corrected_words[0])
+                                or lexicon.contains(corrected_words[1])):
+                return (word, corrected_words)
 
         return (word, None)
 
