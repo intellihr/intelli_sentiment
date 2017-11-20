@@ -1,6 +1,8 @@
+import math
 import sys
 import logging
 from enum import Enum
+from collections import namedtuple
 
 import spacy
 from autocorrect import spell
@@ -83,16 +85,18 @@ class SentenceAnalyzer:
 
         self._apply_contractive()
 
-        return self._sentiments
+        return SentenceResult(self.text, self._sentiments)
 
     def _apply_contractive(self):
         contractives = (sentiment for sentiment in self._sentiments
-                           if sentiment['type'] == TokenType.CONTRACTIVE)
+                        if sentiment['type'] == TokenType.CONTRACTIVE)
         contractive = next(contractives, None)
         if not contractive:
             return
 
-        for sentiment in self._sentiments:
+        sentiments = (s for s in self._sentiments
+                      if s['type'] == TokenType.MATCH)
+        for sentiment in sentiments:
             if sentiment['pos'] < contractive['pos']:
                 sentiment['score'] *= 0.5
             elif sentiment['pos'] > contractive['pos']:
@@ -134,9 +138,8 @@ class SentenceAnalyzer:
         word = self.text[current]
 
         if word.pos_ in [
-                'PRON', 'NOUN', 'PROPN', 'SPACE', 'ADP', 'CONJ', 'CCONJ',
-                'DET', 'NUM', 'PART', 'SCONJ', 'X'
-        ] or word.ent_type > 0:
+            'SPACE', 'ADP', 'CONJ', 'CCONJ', 'DET', 'NUM', 'PART', 'SCONJ', 'X'
+        ]:
             return
 
         word, corrections = self._correct(self.text[current])
@@ -237,20 +240,24 @@ class SentenceAnalyzer:
 
     def _match_next(self, current, words):
         _words = words.split()
+        _corrections = []
         for i, word in enumerate(_words):
             if current + i >= len(self.text):
                 return (False, len(_words), None)
 
             target, corrections = self._correct(self.text[current + i], [word])
             if target.lemma_ == word or target.lower_ == word:
-                return (True, len(_words), None)
+                continue
 
             if corrections and \
                 any(correction == word for correction in corrections):
                 logger.debug(f'correct {target.text} to {corrections}')
-                return (True, len(_words), corrections)
+                _corrections += corrections
+                continue
 
-        return (False, len(_words), None)
+            return (False, len(_words), None)
+
+        return (True, len(_words), _corrections)
 
     def _correct(self, word, hints=[]):
         if not word.is_oov or word.is_punct:
@@ -269,3 +276,100 @@ class SentenceAnalyzer:
             return (word, corrected_words)
 
         return (word, None)
+
+
+Score = namedtuple('Score', 'pos neg neu compound')
+
+
+class SentenceResult:
+    def __init__(self, text, sentiments):
+        self.text = text
+        self.sentiments = sentiments
+        self._scores = None
+
+    @property
+    def scores(self):
+        if not self._scores:
+            if self.sentiments:
+                sum_s = float(
+                    sum(s['score'] for s in self.sentiments
+                        if s['type'] == TokenType.MATCH))
+
+                # compute and add emphasis from punctuation in text
+                punct_emph_amplifier = self._punctuation_emphasis()
+                if sum_s > 0:
+                    sum_s += punct_emph_amplifier
+                elif sum_s < 0:
+                    sum_s -= punct_emph_amplifier
+
+                # discriminate between positive, negative and neutral sentiment scores
+                pos_sum, neg_sum, neu_count = self._sift_sentiment_scores()
+                if pos_sum > math.fabs(neg_sum):
+                    pos_sum += punct_emph_amplifier
+                elif pos_sum < math.fabs(neg_sum):
+                    neg_sum -= punct_emph_amplifier
+
+                total = pos_sum + math.fabs(neg_sum) + neu_count
+
+                self._scores = Score(
+                    round(math.fabs(pos_sum / total), 3),
+                    round(math.fabs(neg_sum / total), 3),
+                    round(math.fabs(neu_count / total), 3),
+                    round(_normalize(sum_s), 3))
+            else:
+                self._scores = Score(0.0, 0.0, 0.0, 0.0)
+
+        return self._scores
+
+    def _punctuation_emphasis(self):
+        amplifier = 0
+
+        # 1) handle exclamation points
+        count = len([tok for tok in self.text if tok.lemma_ == '!'])
+        amplifier += min(count, 4) * 0.292
+
+        # 2) handle question mark
+        count = len([tok for tok in self.text if tok.lemma_ == '?'])
+        amplifier += min(count * 0.18, 0.96)
+
+        return amplifier
+
+    def _sift_sentiment_scores(self):
+        # want separate positive versus negative sentiment scores
+        pos_sum = 0.0
+        neg_sum = 0.0
+        neu_count = 0
+        scores = (s['score'] for s in self.sentiments
+                  if s['type'] == TokenType.MATCH)
+        for score in scores:
+            if score > 0:
+                pos_sum += (
+                    float(score) + 1
+                )  # compensates for neutral words that are counted as 1
+            elif score < 0:
+                neg_sum += (
+                    float(score) - 1
+                )  # when used with math.fabs(), compensates for neutrals
+            elif score == 0:
+                neu_count += 1
+        return pos_sum, neg_sum, neu_count
+
+
+def sentence_sentiment(text):
+    result = SentenceAnalyzer(text).analyze()
+
+    return result.scores
+
+
+def _normalize(score, alpha=15):
+    """
+    Normalize the score to be between -1 and 1 using an alpha that
+    approximates the max expected value
+    """
+    norm_score = score / math.sqrt((score * score) + alpha)
+    if norm_score < -1.0:
+        return -1.0
+    elif norm_score > 1.0:
+        return 1.0
+    else:
+        return norm_score

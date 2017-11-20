@@ -1,4 +1,4 @@
-from intelli_sentiment.analyzer import SentenceAnalyzer
+from intelli_sentiment.analyzer import sentence_sentiment
 
 
-__all__ = ['SentenceAnalyzer']
+__all__ = ['sentence_sentiment']
