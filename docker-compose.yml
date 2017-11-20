@@ -4,4 +4,6 @@ services:
     build: .
     command: /bin/bash
     volumes:
-      - .:/var/task
+      - .:/usr/src/app
+    environment:
+      - PYTHONPATH=.

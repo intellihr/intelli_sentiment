@@ -3,3 +3,4 @@ autocorrect==0.3.0
 ptpython==0.41
 pytest==3.2.5
 flake8==3.5.0
+vaderSentiment==2.5
