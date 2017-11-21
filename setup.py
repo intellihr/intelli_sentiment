@@ -15,7 +15,7 @@ setuptools.setup(
     description="Sentiment Predictor Based on Vader",
     long_description=readme,
     packages=setuptools.find_packages(),
-    install_requires=['spacy', 'autocorrect'],
+    install_requires=['spacy'],
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
         'Programming Language :: Python',
