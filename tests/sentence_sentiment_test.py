@@ -1,4 +1,5 @@
 from intelli_sentiment import sentence_sentiment
+from tests.util import assert_neg, assert_neu, assert_pos
 
 
 def test_basic_positives():
@@ -64,16 +65,5 @@ def test_least():
     assert_neu('feed him at very least!')
 
 
-def assert_pos(text):
-    scores = sentence_sentiment(text)
-    assert scores.compound > 0
-
-
-def assert_neg(text):
-    scores = sentence_sentiment(text)
-    assert scores.compound < 0
-
-
-def assert_neu(text):
-    scores = sentence_sentiment(text)
-    assert scores.compound == 0
+def test_split_line_tokenizer():
+    assert_pos('he is really good/smart!')

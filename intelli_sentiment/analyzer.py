@@ -1,9 +1,11 @@
+import re
 import math
 import sys
 import logging
 from enum import Enum
 from collections import namedtuple
 
+import numpy
 import spacy
 
 from intelli_sentiment.vader_lexicon import lexicon, is_oov
@@ -19,7 +21,6 @@ logging.basicConfig(
     stream=sys.stdout,
     format='%(asctime)s %(levelname)-8s %(message)s')
 logger = logging.getLogger()
-
 
 nlp = spacy.load('en')
 
@@ -406,6 +407,26 @@ def sentence_sentiment(text):
     return result.scores
 
 
+def paragraph_sentiment(text, alpha=0.87):
+    scores = [
+        sentence_sentiment(tok).compound for tok in _paragraph_tokenizer(text)
+    ]
+    negatives = [s for s in scores if s < 0]
+    positives = [s for s in scores if s > 0]
+
+    if len(negatives) == 0 and len(positives) == 0:
+        return 0
+    elif len(negatives) == 0 and len(positives) > 0:
+        return numpy.mean(positives)
+    elif len(positives) == 0 and len(negatives) > 0:
+        return numpy.mean(negatives)
+
+    neg = numpy.mean(negatives) * alpha
+    pos = numpy.mean(positives) * (1 - alpha)
+
+    return max(-1, min(1, neg + pos))
+
+
 def _normalize(score, alpha=15):
     """
     Normalize the score to be between -1 and 1 using an alpha that
@@ -419,8 +440,33 @@ def _normalize(score, alpha=15):
     else:
         return norm_score
 
+
 def fabs_div(sum, total):
     if total == 0.0:
         return 0.0
 
     return math.fabs(sum / total)
+
+
+def _paragraph_tokenizer(text):
+    """
+    break up text by 'however'
+    """
+    for sent in nlp(text).sents:
+        sent_text = sent.text.strip()
+        matches = re.match(r'(.+)([^a-zA-Z\d]\s*however\s*)(.+)', sent_text)
+
+        if matches:
+            yield matches[1]
+            yield matches[3]
+            continue
+
+        matches = re.match(r'(.+)(\s*but\s*)(.+)(\s*so that\s*)(.+)',
+                           sent_text)
+        if matches:
+            yield matches[1]
+            yield matches[3]
+            yield matches[5]
+            continue
+
+        yield sent_text
