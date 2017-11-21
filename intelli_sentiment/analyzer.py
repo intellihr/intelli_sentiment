@@ -5,9 +5,8 @@ from enum import Enum
 from collections import namedtuple
 
 import spacy
-from autocorrect import spell
 
-from intelli_sentiment.vader_lexicon import lexicon
+from intelli_sentiment.vader_lexicon import lexicon, is_oov
 
 # (empirically derived mean sentiment intensity rating increase for using
 # ALLCAPs to emphasize a word)
@@ -20,6 +19,7 @@ logging.basicConfig(
     stream=sys.stdout,
     format='%(asctime)s %(levelname)-8s %(message)s')
 logger = logging.getLogger()
+
 
 nlp = spacy.load('en')
 
@@ -37,6 +37,7 @@ class SentenceAnalyzer:
         self.text = nlp(raw_text)
         self.is_cap_diff = self._check_is_cap_diff()
         self._sentiments = []
+        self._corrections = {}
 
     def analyze(self):
         i = 0
@@ -150,7 +151,7 @@ class SentenceAnalyzer:
 
         if word.pos_ in [
                 'SPACE', 'ADP', 'CONJ', 'CCONJ', 'DET', 'NUM', 'PART', 'SCONJ',
-                'X', 'PRON'
+                'PRON'
         ]:
             return
 
@@ -289,12 +290,12 @@ class SentenceAnalyzer:
             if current + i >= len(self.text):
                 return (False, len(_words), None)
 
-            target, corrections = self._correct(self.text[current + i], [word])
+            target, corrections = self._correct(self.text[current + i])
             if target.lemma_ == word or target.lower_ == word:
                 continue
 
             if corrections and \
-                any(correction == word for correction in corrections):
+               any(correction == word for correction in corrections):
                 logger.debug(f'correct {target.text} to {corrections}')
                 _corrections += corrections
                 continue
@@ -303,27 +304,22 @@ class SentenceAnalyzer:
 
         return (True, len(_words), _corrections)
 
-    def _correct(self, word, hints=[]):
-        if not word.is_oov or word.is_punct:
+    def _correct(self, word):
+        if word.lower_ in self._corrections:
+            return (word, self._corrections[word.lower_])
+
+        # later we should use word.is_oov
+        if not is_oov(word.text) or word.is_punct:
+            self._corrections[word.lower_] = None
             return (word, None)
 
-        if hints and (word.lower_ in hints or word.lemma_ in hints):
-            return (word, None)
-        elif not hints and (lexicon.contains(word.lower_)
-                            or lexicon.contains(word.lemma_)):
+        word_corrections = lexicon.spell(word.lower_)
+        if not word_corrections:  # already correct
+            self._corrections[word.lower_] = None
             return (word, None)
 
-        # attempt word correction
-        corrected_words = (spell(word.lower_), spell(word.lemma_))
-        if word.lower_ != corrected_words[0]:
-            if hints and (corrected_words[0] in hints
-                          or corrected_words[1] in hints):
-                return (word, corrected_words)
-            elif not hints and (lexicon.contains(corrected_words[0])
-                                or lexicon.contains(corrected_words[1])):
-                return (word, corrected_words)
-
-        return (word, None)
+        self._corrections[word.lower_] = word_corrections
+        return (word, word_corrections)
 
 
 Score = namedtuple('Score', 'pos neg neu compound')
@@ -350,7 +346,8 @@ class SentenceResult:
                 elif sum_s < 0:
                     sum_s -= punct_emph_amplifier
 
-                # discriminate between positive, negative and neutral sentiment scores
+                # discriminate between positive, negative and
+                # neutral sentiment scores
                 pos_sum, neg_sum, neu_count = self._sift_sentiment_scores()
                 if pos_sum > math.fabs(neg_sum):
                     pos_sum += punct_emph_amplifier
@@ -360,9 +357,9 @@ class SentenceResult:
                 total = pos_sum + math.fabs(neg_sum) + neu_count
 
                 self._scores = Score(
-                    round(math.fabs(pos_sum / total), 3),
-                    round(math.fabs(neg_sum / total), 3),
-                    round(math.fabs(neu_count / total), 3),
+                    round(fabs_div(pos_sum, total), 3),
+                    round(fabs_div(neg_sum, total), 3),
+                    round(fabs_div(neu_count, total), 3),
                     round(_normalize(sum_s), 3))
             else:
                 self._scores = Score(0.0, 0.0, 0.0, 0.0)
@@ -421,3 +418,9 @@ def _normalize(score, alpha=15):
         return 1.0
     else:
         return norm_score
+
+def fabs_div(sum, total):
+    if total == 0.0:
+        return 0.0
+
+    return math.fabs(sum / total)

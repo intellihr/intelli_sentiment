@@ -1,7 +1,9 @@
 import os
 import csv
-from collections import defaultdict
+from itertools import chain
 
+from intelli_sentiment.symspell_python import (create_dictionary_entry,
+                                               best_word)
 
 NEGATES = [
     "neither", "hasnt", "havent", "hasn't", "haven't", "never", "none", "nope",
@@ -30,7 +32,7 @@ class Lexicon():
         self.negates = set(NEGATES)
         self.negate_verbs = set(NEGATE_VERBS)
         self.contractives = set(CONTRACTIVES)
-        self._words = defaultdict(set)
+        self.words = set()
 
     def load(self,
              lexicon_file='vader_lexicon.txt',
@@ -40,14 +42,33 @@ class Lexicon():
         self.boosters = self._load_csv(boosters_file)
         self.phrases = self._load_csv(phrases_file)
 
+        for phrase in chain(self.boosters.keys(),
+                            self.phrases.keys(), self.contractives,
+                            self.negates, self.negate_verbs,
+                            self._lexicon.keys()):
+            for word in phrase.split():
+                self.words.add(word.lower())
+
+        for word in self.words:
+            if word.isalpha():
+                create_dictionary_entry(word)
+
     def lookup(self, word):
         return self._lexicon.get(word)
 
     def contains(self, word):
         return word in self._lexicon
 
-    def lookup_booster(self, word):
-        return self.boosters.get(word)
+    def spell(self, word):
+        if word in self.words:
+            return []
+
+        correction = best_word(word)
+        if not correction:
+            print(f'unable to re-spell: {word}')
+            return []
+
+        return [correction[0]]
 
     def _load_csv(self, csv_file):
         file_path = os.path.join(
@@ -61,5 +82,19 @@ class Lexicon():
 
         return result
 
+
 lexicon = Lexicon()
 lexicon.load()
+
+_english_words = set()
+with open(
+        os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            'english_words.txt')) as file:
+    for line in file:
+        _english_words.add(line.strip().lower())
+
+
+# there is a issue in spacy's is_oov implementation, need to revisit later
+def is_oov(word):
+    return not word.lower() in _english_words

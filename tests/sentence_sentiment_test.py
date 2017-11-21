@@ -5,7 +5,8 @@ def test_basic_positives():
     sentences = [
         'Eric is smart, handsome, and funny.', 'The book was good',
         "At least it isn't a horrible book."
-        'Make sure you :) or :D today!'
+        'Make sure you :) or :D today!',
+        "Today only kinda sux! But I'll get by, lol"
     ]
 
     for sentence in sentences:
@@ -16,7 +17,7 @@ def test_basic_negatives():
     sentences = [
         'Bobo is not smart, handsome, nor funny.',
         'The plot was good, but the characters are uncompelling and the dialog is not great.',
-        'Today sucks!', "Today only kinda sux! But I'll get by, lol"
+        'Today sucks!'
     ]
 
     for sentence in sentences:
@@ -43,7 +44,7 @@ def test_kind_of():
 
 def test_spell_correct():
     s1 = sentence_sentiment('The book was aweosme.').compound
-    s2 = sentence_sentiment('The book was kind of awesoem.').compound
+    s2 = sentence_sentiment('The book was kind of awesom.').compound
 
     assert s1 > 0
     assert s2 > 0
