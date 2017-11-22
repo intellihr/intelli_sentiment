@@ -7,6 +7,7 @@ from collections import namedtuple
 
 import numpy
 import spacy
+from spacy.matcher import Matcher
 
 from intelli_sentiment.vader_lexicon import lexicon, is_oov
 
@@ -30,9 +31,25 @@ class TokenType(Enum):
     CONTRACTIVE = 4
 
 
+# TODO: might refactor later
+def __merge_words(matcher, doc, i, matches):
+    match_id, start, end = matches[i]
+    span = doc[start : end]
+    span.merge()
+
+matcher = Matcher(nlp.vocab)
+matcher.add('Test', __merge_words, [{
+    'LOWER': 're'
+}, {
+    'ORTH': '-'
+}, {
+    'IS_ALPHA': True
+}])
+
+
 class SentenceAnalyzer:
     def __init__(self, raw_text, spell_correct=True):
-        self.text = nlp(raw_text)
+        self.text = self._tokenize(raw_text)
         self.is_cap_diff = self._check_is_cap_diff()
         self._sentiments = []
         self._corrections = {}
@@ -322,6 +339,11 @@ class SentenceAnalyzer:
 
         self._corrections[word.lower_] = word_corrections
         return (word, word_corrections)
+
+    def _tokenize(self, raw_text):
+        toks = nlp(raw_text)
+        matcher(toks)
+        return toks
 
 
 Score = namedtuple('Score', 'pos neg neu compound')
