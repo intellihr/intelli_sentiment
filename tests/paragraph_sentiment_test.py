@@ -1,5 +1,6 @@
 from intelli_sentiment import paragraph_sentiment
-from tests.util import assert_neg, assert_neu, assert_pos, vader_sentiment
+from tests.util import (assert_neg, assert_neu, assert_pos, vader_sentiment,
+                        run_evaluation, read_dataset)
 
 
 def test_basic_positives():
@@ -13,3 +14,21 @@ def test_basic_positives():
 
     assert vader_sentiment(text) < 0
     assert paragraph_sentiment(text) < 0
+
+
+def test_with_f5mgroup_dataset():
+    # evaluation = run_evaluation('sentiment_dataset_f5mgroup.tsv',
+    #                             vader_sentiment)
+    #
+    # print(evaluation.results)
+    #
+    # evaluation = run_evaluation('sentiment_dataset_f5mgroup.tsv',
+    #                             paragraph_sentiment)
+    #
+    # print(evaluation.results)
+    dataset = read_dataset('sentiment_dataset_f5mgroup.tsv')
+    for score, text in dataset:
+        s1 = vader_sentiment(text)
+        s2 = paragraph_sentiment(text)
+        if (s1 < 0 and s2 >=0) or (s1 >= 0 and s2 < 0):
+            print(f'{score} {s1} {s2} : {text}')

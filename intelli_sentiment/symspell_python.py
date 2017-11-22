@@ -97,7 +97,7 @@ goodbye
 import logging
 import re
 
-max_edit_distance = 3
+max_edit_distance = 1
 verbose = 1
 # 0: top suggestion
 # 1: all suggestions of smallest edit distance
@@ -105,6 +105,7 @@ verbose = 1
 
 dictionary = {}
 longest_word_length = 0
+
 
 def get_deletes_list(w):
     '''given a word, derive strings with up to max_edit_distance characters
@@ -114,9 +115,9 @@ def get_deletes_list(w):
     for d in range(max_edit_distance):
         temp_queue = []
         for word in queue:
-            if len(word)>1:
+            if len(word) > 1:
                 for c in range(len(word)):  # character index
-                    word_minus_c = word[:c] + word[c+1:]
+                    word_minus_c = word[:c] + word[c + 1:]
                     if word_minus_c not in deletes:
                         deletes.append(word_minus_c)
                     if word_minus_c not in temp_queue:
@@ -124,6 +125,7 @@ def get_deletes_list(w):
         queue = temp_queue
 
     return deletes
+
 
 def create_dictionary_entry(w):
     '''add word and its derived deletions to dictionary'''
@@ -139,7 +141,7 @@ def create_dictionary_entry(w):
         dictionary[w] = ([], 1)
         longest_word_length = max(longest_word_length, len(w))
 
-    if dictionary[w][1]==1:
+    if dictionary[w][1] == 1:
         # first appearance of word in corpus
         # n.b. word may already be in dictionary as a derived word
         # (deleting character from a real word)
@@ -157,6 +159,7 @@ def create_dictionary_entry(w):
 
     return new_real_word_added
 
+
 def create_dictionary(sentences):
 
     total_word_count = 0
@@ -165,8 +168,8 @@ def create_dictionary(sentences):
     # with open(fname) as file:
     #     logging.info ("Creating dictionary...")
     #     for line in file:
-            # separate by words by non-alphabetical characters
-    logging.info ("Creating dictionary...")
+    # separate by words by non-alphabetical characters
+    logging.info("Creating dictionary...")
     for sent in sentences:
         words = re.findall('[a-z]+', sent.lower())
         for word in words:
@@ -181,6 +184,7 @@ def create_dictionary(sentences):
     # print "  length of longest word in corpus: %i" % longest_word_length
 
     return dictionary
+
 
 def dameraulevenshtein(seq1, seq2):
     """Calculate the Damerau-Levenshtein distance between sequences.
@@ -226,16 +230,17 @@ def dameraulevenshtein(seq1, seq2):
             thisrow[y] = min(delcost, addcost, subcost)
             # This block deals with transpositions
             if (x > 0 and y > 0 and seq1[x] == seq2[y - 1]
-                and seq1[x-1] == seq2[y] and seq1[x] != seq2[y]):
+                    and seq1[x - 1] == seq2[y] and seq1[x] != seq2[y]):
                 thisrow[y] = min(thisrow[y], twoago[y - 2] + 1)
     return thisrow[len(seq2) - 1]
+
 
 def get_suggestions(string, silent=False):
     '''return list of suggested corrections for potentially incorrectly
        spelled word'''
     if (len(string) - longest_word_length) > max_edit_distance:
         if not silent:
-            logging.info ("no items in dictionary within maximum edit distance")
+            logging.info("no items in dictionary within maximum edit distance")
         return []
 
     global verbose
@@ -245,30 +250,30 @@ def get_suggestions(string, silent=False):
     queue = [string]
     q_dictionary = {}  # items other than string that we've checked
 
-    while len(queue)>0:
+    while len(queue) > 0:
         q_item = queue[0]  # pop
         queue = queue[1:]
 
         # early exit
-        if ((verbose<2) and (len(suggest_dict)>0) and
-              ((len(string)-len(q_item))>min_suggest_len)):
+        if ((verbose < 2) and (len(suggest_dict) > 0)
+                and ((len(string) - len(q_item)) > min_suggest_len)):
             break
 
         # process queue item
         if (q_item in dictionary) and (q_item not in suggest_dict):
-            if (dictionary[q_item][1]>0):
-            # word is in dictionary, and is a word from the corpus, and
-            # not already in suggestion list so add to suggestion
-            # dictionary, indexed by the word with value (frequency in
-            # corpus, edit distance)
-            # note q_items that are not the input string are shorter
-            # than input string since only deletes are added (unless
-            # manual dictionary corrections are added)
-                assert len(string)>=len(q_item)
+            if (dictionary[q_item][1] > 0):
+                # word is in dictionary, and is a word from the corpus, and
+                # not already in suggestion list so add to suggestion
+                # dictionary, indexed by the word with value (frequency in
+                # corpus, edit distance)
+                # note q_items that are not the input string are shorter
+                # than input string since only deletes are added (unless
+                # manual dictionary corrections are added)
+                assert len(string) >= len(q_item)
                 suggest_dict[q_item] = (dictionary[q_item][1],
                                         len(string) - len(q_item))
                 # early exit
-                if ((verbose<2) and (len(string)==len(q_item))):
+                if ((verbose < 2) and (len(string) == len(q_item))):
                     break
                 elif (len(string) - len(q_item)) < min_suggest_len:
                     min_suggest_len = len(string) - len(q_item)
@@ -282,20 +287,20 @@ def get_suggestions(string, silent=False):
                     # compute edit distance
                     # suggested items should always be longer
                     # (unless manual corrections are added)
-                    assert len(sc_item)>len(q_item)
+                    assert len(sc_item) > len(q_item)
 
                     # q_items that are not input should be shorter
                     # than original string
                     # (unless manual corrections added)
-                    assert len(q_item)<=len(string)
+                    assert len(q_item) <= len(string)
 
-                    if len(q_item)==len(string):
-                        assert q_item==string
+                    if len(q_item) == len(string):
+                        assert q_item == string
                         item_dist = len(sc_item) - len(q_item)
 
                     # item in suggestions list should not be the same as
                     # the string itself
-                    assert sc_item!=string
+                    assert sc_item != string
 
                     # calculate edit distance using, for example,
                     # Damerau-Levenshtein distance
@@ -303,11 +308,12 @@ def get_suggestions(string, silent=False):
 
                     # do not add words with greater edit distance if
                     # verbose setting not on
-                    if ((verbose<2) and (item_dist>min_suggest_len)):
+                    if ((verbose < 2) and (item_dist > min_suggest_len)):
                         pass
-                    elif item_dist<=max_edit_distance:
+                    elif item_dist <= max_edit_distance:
                         assert sc_item in dictionary  # should already be in dictionary if in suggestion list
-                        suggest_dict[sc_item] = (dictionary[sc_item][1], item_dist)
+                        suggest_dict[sc_item] = (dictionary[sc_item][1],
+                                                 item_dist)
                         if item_dist < min_suggest_len:
                             min_suggest_len = item_dist
 
@@ -315,30 +321,36 @@ def get_suggestions(string, silent=False):
                     # with different edit distances may be entered into
                     # suggestions; trim suggestion dictionary if verbose
                     # setting not on
-                    if verbose<2:
-                        suggest_dict = {k:v for k, v in list(suggest_dict.items()) if v[1]<=min_suggest_len}
+                    if verbose < 2:
+                        suggest_dict = {
+                            k: v
+                            for k, v in list(suggest_dict.items())
+                            if v[1] <= min_suggest_len
+                        }
 
         # now generate deletes (e.g. a substring of string or of a delete)
         # from the queue item
         # as additional items to check -- add to end of queue
-        assert len(string)>=len(q_item)
+        assert len(string) >= len(q_item)
 
         # do not add words with greater edit distance if verbose setting
         # is not on
-        if ((verbose<2) and ((len(string)-len(q_item))>min_suggest_len)):
+        if ((verbose < 2) and ((len(string) - len(q_item)) > min_suggest_len)):
             pass
-        elif (len(string)-len(q_item))<max_edit_distance and len(q_item)>1:
-            for c in range(len(q_item)): # character index
-                word_minus_c = q_item[:c] + q_item[c+1:]
+        elif (len(string) -
+              len(q_item)) < max_edit_distance and len(q_item) > 1:
+            for c in range(len(q_item)):  # character index
+                word_minus_c = q_item[:c] + q_item[c + 1:]
                 if word_minus_c not in q_dictionary:
                     queue.append(word_minus_c)
-                    q_dictionary[word_minus_c] = None  # arbitrary value, just to identify we checked this
+                    q_dictionary[
+                        word_minus_c] = None  # arbitrary value, just to identify we checked this
 
     # queue is now empty: convert suggestions in dictionary to
     # list for output
-    if not silent and verbose!=0:
-        logging.info ("number of possible corrections: %i" %len(suggest_dict))
-        logging.info ("  edit distance for deletions: %i" % max_edit_distance)
+    if not silent and verbose != 0:
+        logging.info("number of possible corrections: %i" % len(suggest_dict))
+        logging.info("  edit distance for deletions: %i" % max_edit_distance)
 
     # output option 1
     # sort results by ascending order of edit distance and descending
@@ -351,13 +363,15 @@ def get_suggestions(string, silent=False):
     # return list of suggestions with (correction,
     #                                  (frequency in corpus, edit distance)):
     as_list = list(suggest_dict.items())
-    outlist = sorted(as_list, key=lambda term_freq_dist: (term_freq_dist[1][1], -term_freq_dist[1][0]))
+    outlist = sorted(
+        as_list,
+        key=lambda term_freq_dist: (term_freq_dist[1][1], -term_freq_dist[1][0])
+    )
 
-    if verbose==0:
+    if verbose == 0:
         return outlist[0]
     else:
         return outlist
-
     '''
     Option 1:
     ['file', 'five', 'fire', 'fine', ...]
@@ -369,11 +383,13 @@ def get_suggestions(string, silent=False):
      ('fine', (17, 1))...]
     '''
 
+
 def best_word(s, silent=False):
     try:
         return get_suggestions(s, silent)[0]
     except:
         return None
+
 
 def correct_document(fname, printlist=True):
     # correct an entire document
@@ -381,7 +397,7 @@ def correct_document(fname, printlist=True):
         doc_word_count = 0
         corrected_word_count = 0
         unknown_word_count = 0
-        logging.info ("Finding misspelled words in your document...")
+        logging.info("Finding misspelled words in your document...")
 
         for i, line in enumerate(file):
             # separate by words by non-alphabetical characters
@@ -391,11 +407,15 @@ def correct_document(fname, printlist=True):
                 suggestion = best_word(doc_word, silent=True)
                 if suggestion is None:
                     if printlist:
-                        logging.info ("In line %i, the word < %s > was not found (no suggested correction)" % (i, doc_word))
+                        logging.info(
+                            "In line %i, the word < %s > was not found (no suggested correction)"
+                            % (i, doc_word))
                     unknown_word_count += 1
-                elif suggestion[0]!=doc_word:
+                elif suggestion[0] != doc_word:
                     if printlist:
-                        logging.info ("In line %i, %s: suggested correction is < %s >" % (i, doc_word, suggestion[0]))
+                        logging.info(
+                            "In line %i, %s: suggested correction is < %s >" %
+                            (i, doc_word, suggestion[0]))
                     corrected_word_count += 1
 
     # print "-----"

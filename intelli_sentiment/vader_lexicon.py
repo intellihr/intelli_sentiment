@@ -1,19 +1,23 @@
 import os
 import csv
+import logging
+
 from itertools import chain
 
 from intelli_sentiment.symspell_python import (create_dictionary_entry,
                                                best_word)
 
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
 NEGATES = [
-    "neither", "hasnt", "havent", "hasn't", "haven't", "never", "none", "nope",
-    "nor", "nothing", "nowhere", "uhuh", "without", "rarely", "seldom",
-    "despite", "darent", "daren't", "least"
+    "neither", "never", "none", "nope", "nor", "nothing", "nowhere", "uhuh",
+    "without", "rarely", "seldom", "despite", "least", "not", "no"
 ]
 
 NEGATE_VERBS = [
     'be', 'can', 'could', 'do', 'have', 'may', 'must', 'ne', 'ought', 'shall',
-    'should', 'will', 'would'
+    'should', 'will', 'would', 'dare'
 ]
 
 CONTRACTIVES = [
@@ -63,9 +67,9 @@ class Lexicon():
         if word in self.words:
             return []
 
-        correction = best_word(word)
+        correction = best_word(word, True)
         if not correction:
-            print(f'unable to re-spell: {word}')
+            logging.debug(f'unable to re-spell: {word}')
             return []
 
         return [correction[0]]
@@ -92,7 +96,8 @@ with open(
             os.path.dirname(os.path.abspath(__file__)),
             'english_words.txt')) as file:
     for line in file:
-        _english_words.add(line.strip().lower())
+        word = line.strip().lower()
+        _english_words.add(word)
 
 
 # there is a issue in spacy's is_oov implementation, need to revisit later

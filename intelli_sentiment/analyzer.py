@@ -16,11 +16,8 @@ C_INCR = 0.733
 
 N_SCALAR = -0.74
 
-logging.basicConfig(
-    level=logging.INFO,
-    stream=sys.stdout,
-    format='%(asctime)s %(levelname)-8s %(message)s')
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 nlp = spacy.load('en')
 
@@ -34,11 +31,12 @@ class TokenType(Enum):
 
 
 class SentenceAnalyzer:
-    def __init__(self, raw_text):
+    def __init__(self, raw_text, spell_correct=True):
         self.text = nlp(raw_text)
         self.is_cap_diff = self._check_is_cap_diff()
         self._sentiments = []
         self._corrections = {}
+        self.spell_correct = spell_correct
 
     def analyze(self):
         i = 0
@@ -306,11 +304,14 @@ class SentenceAnalyzer:
         return (True, len(_words), _corrections)
 
     def _correct(self, word):
+        if not self.spell_correct:
+            return (word, None)
+
         if word.lower_ in self._corrections:
             return (word, self._corrections[word.lower_])
 
         # later we should use word.is_oov
-        if not is_oov(word.text) or word.is_punct:
+        if not is_oov(word.text) or not word.is_alpha or word.is_upper:
             self._corrections[word.lower_] = None
             return (word, None)
 
@@ -399,6 +400,14 @@ class SentenceResult:
             elif score == 0:
                 neu_count += 1
         return pos_sum, neg_sum, neu_count
+
+    def debug(self):
+        debugs = []
+        for sent in self.sentiments:
+            word = self.text[sent['pos']]
+            debugs.append(f"{sent['score']} {word.text} {sent['type']}")
+
+        return '\n'.join(debugs)
 
 
 def sentence_sentiment(text):

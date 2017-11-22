@@ -1,4 +1,6 @@
+import os
 import re
+import csv
 
 import numpy
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
@@ -20,6 +22,89 @@ def assert_neg(text):
 def assert_neu(text):
     scores = sentence_sentiment(text)
     assert scores.compound == 0
+
+
+def run_evaluation(dataset_file, predictor):
+    file_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), dataset_file)
+
+    evaluation = Evaluation()
+    dataset = read_dataset(dataset_file)
+    for record in dataset:
+        evaluation.add(record[0], predictor(record[1]))
+
+    return evaluation
+
+
+def read_dataset(dataset_file):
+    file_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), dataset_file)
+
+    records = []
+    with open(file_path) as dataset_file:
+        reader = csv.reader(dataset_file, delimiter='\t')
+        for row in reader:
+            records.append((float(row[0]), row[1]))
+
+    return records
+
+class Evaluation:
+    def __init__(self):
+        self._records = []
+
+    def add(self, actual, predict):
+        self._records.append((actual, predict))
+
+    @property
+    def results(self):
+        pos = self.pos
+        neg = self.neg
+        fscore = (pos['fscore'] + neg['fscore']) / 2
+
+        return dict(
+            mse=self.mse,
+            pos=pos,
+            neg=neg,
+            fscore=fscore
+        )
+
+    @property
+    def pos(self):
+        if len(self._records) <= 0:
+            return 0
+
+        pos_actual = len([r for r in self._records if r[0] >= 0])
+        pos_predicted = len([r for r in self._records if r[1] >= 0])
+        pos_correct = len([r for r in self._records if r[0] >= 0 and r[1] >= 0])
+
+        precision = pos_correct / pos_predicted
+        recall = pos_correct / pos_actual
+        fscore = 2 * ((precision * recall) / max(1, precision + recall))
+
+        return dict(precision=precision, recall=recall, fscore=fscore)
+
+    @property
+    def neg(self):
+        if len(self._records) <= 0:
+            return 0
+
+        neg_actual = len([r for r in self._records if r[0] < 0])
+        neg_predicted = len([r for r in self._records if r[1] < 0])
+        neg_correct = len([r for r in self._records if r[0] < 0 and r[1] < 0])
+
+        precision = neg_correct / neg_predicted
+        recall = neg_correct / neg_actual
+        fscore = 2 * ((precision * recall) / max(1, precision + recall))
+
+        return dict(precision=precision, recall=recall, fscore=fscore)
+
+    @property
+    def mse(self):
+        if len(self._records) <= 0:
+            return 0
+
+        square_errors = [(r[0] - r[1])**2 for r in self._records]
+        return numpy.mean(square_errors)
 
 
 def vader_sentiment(text, alpha=0.87):
