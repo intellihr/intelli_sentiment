@@ -41,11 +41,18 @@ class Lexicon():
     def load(self,
              lexicon_file='vader_lexicon.txt',
              boosters_file='boosters.txt',
-             phrases_file='phrases.txt'):
+             phrases_file='phrases.txt',
+             additions=None):
+
+        logger.debug('loading lexicon from file')
         self._lexicon = self._load_csv(lexicon_file)
         self.boosters = self._load_csv(boosters_file)
         self.phrases = self._load_csv(phrases_file)
 
+        logger.debug('apply lexicon additions')
+        self._apply_additions(additions)
+
+        logger.debug('build words collection')
         for phrase in chain(self.boosters.keys(),
                             self.phrases.keys(), self.contractives,
                             self.negates, self.negate_verbs,
@@ -53,9 +60,11 @@ class Lexicon():
             for word in phrase.split():
                 self.words.add(word.lower())
 
+        logger.debug('build spelling dictionary')
         for word in self.words:
             if word.isalpha():
                 create_dictionary_entry(word)
+        logger.debug('finish build spelling dictionary')
 
     def lookup(self, word):
         return self._lexicon.get(word)
@@ -86,9 +95,24 @@ class Lexicon():
 
         return result
 
+    def _apply_additions(self, additions):
+        if not additions:
+            return
 
-lexicon = Lexicon()
-lexicon.load()
+        self._lexicon.update(additions.get('lexicon', {}))
+        self.boosters.update(additions.get('boosters', {}))
+        self.phrases.update(additions.get('phrases', {}))
+        self.negates.update(additions.get('negates', []))
+        self.negate_verbs.update(additions.get('negate_verbs', []))
+        self.contractives.update(additions.get('contractives', []))
+
+
+def build_lexicon(**kwargs):
+    lexicon = Lexicon()
+    lexicon.load(**kwargs)
+
+    return lexicon
+
 
 _english_words = set()
 with open(

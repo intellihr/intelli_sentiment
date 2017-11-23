@@ -1,5 +1,10 @@
+import logging
+
 from intelli_sentiment import sentence_sentiment
 from tests.util import assert_neg, assert_neu, assert_pos
+
+logging.basicConfig(
+    format='%(asctime)s %(levelname)s: %(message)s', level=logging.DEBUG)
 
 
 def test_basic_positives():
@@ -9,7 +14,7 @@ def test_basic_positives():
         'Make sure you :) or :D today!',
         "Today only kinda sux! But I'll get by, lol"
     ]
-
+    logging.info('test')
     for sentence in sentences:
         assert_pos(sentence)
 
@@ -17,7 +22,10 @@ def test_basic_positives():
 def test_basic_negatives():
     sentences = [
         'Bobo is not smart, handsome, nor funny.',
-        'The plot was good, but the characters are uncompelling and the dialog is not great.',
+        """
+        The plot was good, but the characters are uncompelling
+        and the dialog is not great.
+        """,
         'Today sucks!'
     ]
 

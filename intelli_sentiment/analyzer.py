@@ -1,6 +1,5 @@
 import re
 import math
-import sys
 import logging
 from enum import Enum
 from collections import namedtuple
@@ -9,7 +8,7 @@ import numpy
 import spacy
 from spacy.matcher import Matcher
 
-from intelli_sentiment.vader_lexicon import lexicon, is_oov
+from intelli_sentiment.vader_lexicon import build_lexicon, is_oov
 
 # (empirically derived mean sentiment intensity rating increase for using
 # ALLCAPs to emphasize a word)
@@ -34,8 +33,9 @@ class TokenType(Enum):
 # TODO: might refactor later
 def __merge_words(matcher, doc, i, matches):
     match_id, start, end = matches[i]
-    span = doc[start : end]
+    span = doc[start:end]
     span.merge()
+
 
 matcher = Matcher(nlp.vocab)
 matcher.add('Test', __merge_words, [{
@@ -48,12 +48,15 @@ matcher.add('Test', __merge_words, [{
 
 
 class SentenceAnalyzer:
-    def __init__(self, raw_text, spell_correct=True):
+    __default_lexicon = None
+
+    def __init__(self, raw_text, spell_correct=True, lexicon=None):
         self.text = self._tokenize(raw_text)
         self.is_cap_diff = self._check_is_cap_diff()
         self._sentiments = []
         self._corrections = {}
         self.spell_correct = spell_correct
+        self._lexicon = lexicon
 
     def analyze(self):
         i = 0
@@ -115,6 +118,20 @@ class SentenceAnalyzer:
 
         return SentenceResult(self.text, self._sentiments)
 
+    @property
+    def lexicon(self):
+        if self._lexicon:
+            return self._lexicon
+
+        return self._default_lexicon()
+
+    @classmethod
+    def _default_lexicon(cls):
+        if not cls.__default_lexicon:
+            cls.__default_lexicon = build_lexicon()
+
+        return cls.__default_lexicon
+
     def _apply_contractive(self):
         contractives = (sentiment for sentiment in self._sentiments
                         if sentiment['type'] == TokenType.CONTRACTIVE)
@@ -131,7 +148,7 @@ class SentenceAnalyzer:
                 sentiment['score'] *= 1.5
 
     def _check_booster(self, current):
-        for phrase, score in lexicon.boosters.items():
+        for phrase, score in self.lexicon.boosters.items():
             result = self._match_next(current, phrase)
             if result[0]:
                 return (score, result[1], result[2])
@@ -139,7 +156,7 @@ class SentenceAnalyzer:
         return (False, 0, None)
 
     def _check_negate(self, current):
-        for phrase in lexicon.negates:
+        for phrase in self.lexicon.negates:
             result = self._match_next(current, phrase)
             if result[0]:
                 return (True, result[1], result[2])
@@ -149,13 +166,13 @@ class SentenceAnalyzer:
             term_2 = self.text[current + 1]
             if (term_2.lemma_ == 'not' and term_2.pos_ == 'ADV'
                     and term_1.pos_ == 'VERB'
-                    and term_1.lemma_ in lexicon.negate_verbs):
+                    and term_1.lemma_ in self.lexicon.negate_verbs):
                 return (True, 2, None)
 
         return (False, 0, None)
 
     def _check_contractive(self, current):
-        for phrase in lexicon.contractives:
+        for phrase in self.lexicon.contractives:
             result = self._match_next(current, phrase)
             if result[0]:
                 return (True, result[1], result[2])
@@ -175,9 +192,9 @@ class SentenceAnalyzer:
 
         score = None
         if corrections:
-            score = lexicon.lookup(corrections[0])
+            score = self.lexicon.lookup(corrections[0])
         else:
-            score = lexicon.lookup(word.lower_)
+            score = self.lexicon.lookup(word.lower_)
 
         if score is None:
             if not word.is_punct:
@@ -210,7 +227,7 @@ class SentenceAnalyzer:
         corrections = None
         score = None
 
-        for phrase, _score in lexicon.phrases.items():
+        for phrase, _score in self.lexicon.phrases.items():
             found, length, corrections = self._match_next(current, phrase)
             if found:
                 score = _score
@@ -332,7 +349,7 @@ class SentenceAnalyzer:
             self._corrections[word.lower_] = None
             return (word, None)
 
-        word_corrections = lexicon.spell(word.lower_)
+        word_corrections = self.lexicon.spell(word.lower_)
         if not word_corrections:  # already correct
             self._corrections[word.lower_] = None
             return (word, None)
@@ -432,15 +449,16 @@ class SentenceResult:
         return '\n'.join(debugs)
 
 
-def sentence_sentiment(text):
-    result = SentenceAnalyzer(text).analyze()
+def sentence_sentiment(text, **kwargs):
+    result = SentenceAnalyzer(text, **kwargs).analyze()
 
     return result.scores
 
 
-def paragraph_sentiment(text, alpha=0.87):
+def paragraph_sentiment(text, alpha=0.87, **kwargs):
     scores = [
-        sentence_sentiment(tok).compound for tok in _paragraph_tokenizer(text)
+        sentence_sentiment(tok, **kwargs).compound
+        for tok in _paragraph_tokenizer(text)
     ]
     negatives = [s for s in scores if s < 0]
     positives = [s for s in scores if s > 0]

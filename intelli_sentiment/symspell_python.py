@@ -47,8 +47,10 @@ From the original SymSpell documentation:
 
 For further information on SymSpell, please consult the original
 documentation:
-  URL: blog.faroo.com/2012/06/07/improved-edit-distance-based-spelling-correction/
-  Description: blog.faroo.com/2012/06/07/improved-edit-distance-based-spelling-correction/
+  URL:
+    blog.faroo.com/2012/06/07/improved-edit-distance-based-spelling-correction/
+  Description:
+    blog.faroo.com/2012/06/07/improved-edit-distance-based-spelling-correction/
 
 The current version of this program will output all possible suggestions for
 corrections up to an edit distance (configurable) of max_edit_distance = 3.
@@ -179,7 +181,8 @@ def create_dictionary(sentences):
 
     # print "total words processed: %i" % total_word_count
     # print "total unique words in corpus: %i" % unique_word_count
-    # print "total items in dictionary (corpus words and deletions): %i" % len(dictionary)
+    # print "total items in dictionary (corpus words and deletions):
+    # %i" % len(dictionary)
     # print "  edit distance for deletions: %i" % max_edit_distance
     # print "  length of longest word in corpus: %i" % longest_word_length
 
@@ -311,7 +314,8 @@ def get_suggestions(string, silent=False):
                     if ((verbose < 2) and (item_dist > min_suggest_len)):
                         pass
                     elif item_dist <= max_edit_distance:
-                        assert sc_item in dictionary  # should already be in dictionary if in suggestion list
+                        # should already be in dictionary if in suggestion list
+                        assert sc_item in dictionary
                         suggest_dict[sc_item] = (dictionary[sc_item][1],
                                                  item_dist)
                         if item_dist < min_suggest_len:
@@ -343,8 +347,9 @@ def get_suggestions(string, silent=False):
                 word_minus_c = q_item[:c] + q_item[c + 1:]
                 if word_minus_c not in q_dictionary:
                     queue.append(word_minus_c)
+                    # arbitrary value, just to identify we checked this
                     q_dictionary[
-                        word_minus_c] = None  # arbitrary value, just to identify we checked this
+                        word_minus_c] = None
 
     # queue is now empty: convert suggestions in dictionary to
     # list for output
@@ -365,7 +370,8 @@ def get_suggestions(string, silent=False):
     as_list = list(suggest_dict.items())
     outlist = sorted(
         as_list,
-        key=lambda term_freq_dist: (term_freq_dist[1][1], -term_freq_dist[1][0])
+        key=lambda term_freq_dist: (term_freq_dist[1][1],
+                                    -term_freq_dist[1][0])
     )
 
     if verbose == 0:
@@ -387,7 +393,7 @@ def get_suggestions(string, silent=False):
 def best_word(s, silent=False):
     try:
         return get_suggestions(s, silent)[0]
-    except:
+    except:  # noqa
         return None
 
 
@@ -408,7 +414,8 @@ def correct_document(fname, printlist=True):
                 if suggestion is None:
                     if printlist:
                         logging.info(
-                            "In line %i, the word < %s > was not found (no suggested correction)"
+                            "In line %i, the word < %s > " +
+                            "was not found (no suggested correction)"
                             % (i, doc_word))
                     unknown_word_count += 1
                 elif suggestion[0] != doc_word:

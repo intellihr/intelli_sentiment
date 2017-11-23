@@ -25,9 +25,6 @@ def assert_neu(text):
 
 
 def run_evaluation(dataset_file, predictor):
-    file_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), dataset_file)
-
     evaluation = Evaluation()
     dataset = read_dataset(dataset_file)
     for record in dataset:
@@ -48,6 +45,7 @@ def read_dataset(dataset_file):
 
     return records
 
+
 class Evaluation:
     def __init__(self):
         self._records = []
@@ -61,12 +59,7 @@ class Evaluation:
         neg = self.neg
         fscore = (pos['fscore'] + neg['fscore']) / 2
 
-        return dict(
-            mse=self.mse,
-            pos=pos,
-            neg=neg,
-            fscore=fscore
-        )
+        return dict(mse=self.mse, pos=pos, neg=neg, fscore=fscore)
 
     @property
     def pos(self):
@@ -75,7 +68,8 @@ class Evaluation:
 
         pos_actual = len([r for r in self._records if r[0] >= 0])
         pos_predicted = len([r for r in self._records if r[1] >= 0])
-        pos_correct = len([r for r in self._records if r[0] >= 0 and r[1] >= 0])
+        pos_correct = len(
+            [r for r in self._records if r[0] >= 0 and r[1] >= 0])
 
         precision = pos_correct / pos_predicted
         recall = pos_correct / pos_actual
