@@ -2,6 +2,7 @@ import logging
 
 from intelli_sentiment import sentence_sentiment
 from tests.util import assert_neg, assert_neu, assert_pos
+from intelli_sentiment.analyzer import SentenceAnalyzer
 
 logging.basicConfig(
     format='%(asctime)s %(levelname)s: %(message)s', level=logging.DEBUG)
@@ -21,12 +22,10 @@ def test_basic_positives():
 
 def test_basic_negatives():
     sentences = [
-        'Bobo is not smart, handsome, nor funny.',
-        """
+        'Bobo is not smart, handsome, nor funny.', """
         The plot was good, but the characters are uncompelling
         and the dialog is not great.
-        """,
-        'Today sucks!'
+        """, 'Today sucks!'
     ]
 
     for sentence in sentences:
@@ -58,6 +57,19 @@ def test_spell_correct():
     assert s1 > 0
     assert s2 > 0
     assert s1 > s2
+
+
+def test_re_pattern_tokenized_correctly():
+    sentences = [
+        'I have asked him to do some re-work',
+        'The work worths more re-think and so do not rush things'
+    ]
+    for sent in sentences:
+        analyzer = SentenceAnalyzer(sent)
+        analyzer.analyze()
+
+        assert any(tok.text in ['re-work', 're-think']
+                   for tok in analyzer.text)
 
 
 def test_phrases():
