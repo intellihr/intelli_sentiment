@@ -1,6 +1,17 @@
+import json
+
 from intelli_sentiment import paragraph_sentiment
+from intelli_sentiment.vader_lexicon import build_lexicon
+from intelli_sentiment.analyzer import nlp
+from intelli_sentiment.nlp_matcher import build_matcher
 from tests.util import (assert_neg, assert_neu, assert_pos, vader_sentiment,
-                        run_evaluation, read_dataset)
+                        run_evaluation, read_dataset, file_path)
+
+
+
+_test_lexicon = \
+    build_lexicon(additions=json.load(open(file_path('lexicon_addition.json'))))
+_test_matcher = build_matcher(nlp, _test_lexicon)
 
 
 def test_basic_positives():
@@ -13,22 +24,27 @@ def test_basic_positives():
     """.strip()
 
     assert vader_sentiment(text) < 0
-    assert paragraph_sentiment(text) < 0
+    assert _paragraph_sentiment(text) < 0
 
 
 def test_with_f5mgroup_dataset():
-    # evaluation = run_evaluation('sentiment_dataset_f5mgroup.tsv',
-    #                             vader_sentiment)
-    #
-    # print(evaluation.results)
-    #
-    # evaluation = run_evaluation('sentiment_dataset_f5mgroup.tsv',
-    #                             paragraph_sentiment)
-    #
-    # print(evaluation.results)
-    dataset = read_dataset('sentiment_dataset_f5mgroup.tsv')
-    for score, text in dataset:
-        s1 = vader_sentiment(text)
-        s2 = paragraph_sentiment(text)
-        if (s1 < 0 and s2 >=0) or (s1 >= 0 and s2 < 0):
-            print(f'{score} {s1} {s2} : {text}')
+    evaluation = run_evaluation('sentiment_dataset_f5mgroup.tsv',
+                                vader_sentiment)
+
+    print(evaluation.results)
+
+    evaluation = run_evaluation('sentiment_dataset_f5mgroup.tsv',
+                                paragraph_sentiment)
+
+    print(evaluation.results)
+    # dataset = read_dataset('sentiment_dataset_f5mgroup.tsv')
+    # for score, text in dataset:
+    #     s1 = vader_sentiment(text)
+    #     s2 = _paragraph_sentiment(text)
+    #     if (s1 < 0 and s2 >= 0) or (s1 >= 0 and s2 < 0):
+    #         print(f'{score} {s1} {s2} : {text}')
+
+
+def _paragraph_sentiment(text):
+    return paragraph_sentiment(
+        text, lexicon=_test_lexicon, matcher=_test_matcher)

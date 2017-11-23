@@ -6,9 +6,10 @@ from collections import namedtuple
 
 import numpy
 import spacy
-from spacy.matcher import Matcher
+from spacy.tokens import Token
 
 from intelli_sentiment.vader_lexicon import build_lexicon, is_oov
+from intelli_sentiment.nlp_matcher import build_matcher
 
 # (empirically derived mean sentiment intensity rating increase for using
 # ALLCAPs to emphasize a word)
@@ -20,6 +21,9 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 nlp = spacy.load('en')
+Token.set_extension('_custom_pos', default=None)
+Token.set_extension(
+    'pos', getter=lambda token: token._._custom_pos or token.pos_)
 
 
 class TokenType(Enum):
@@ -30,38 +34,33 @@ class TokenType(Enum):
     CONTRACTIVE = 4
 
 
-# TODO: might refactor later
-def __merge_words(matcher, doc, i, matches):
-    match_id, start, end = matches[i]
-    span = doc[start:end]
-    span.merge()
-
-
-matcher = Matcher(nlp.vocab)
-matcher.add('Test', __merge_words, [{
-    'LOWER': 're'
-}, {
-    'ORTH': '-'
-}, {
-    'IS_ALPHA': True
-}])
-
-
 class SentenceAnalyzer:
     __default_lexicon = None
+    __default_matcher = None
 
-    def __init__(self, raw_text, spell_correct=True, lexicon=None):
+    def __init__(self,
+                 raw_text,
+                 spell_correct=True,
+                 lexicon=None,
+                 matcher=None):
+        self._lexicon = lexicon
+        self._matcher = matcher
         self.text = self._tokenize(raw_text)
         self.is_cap_diff = self._check_is_cap_diff()
         self._sentiments = []
         self._corrections = {}
         self.spell_correct = spell_correct
-        self._lexicon = lexicon
 
     def analyze(self):
         i = 0
         while i < len(self.text):
-            # 1) resolve long phrases first
+            # 1) handle custom exceptions
+            is_exception, length = self._check_exception(i)
+            if is_exception:
+                i += length
+                continue
+
+            # 2) resolve long phrases first
             phrase_score, length, corrections = self._add_phrase_sentiment(i)
             if phrase_score is not False:
                 self._sentiments.append(
@@ -74,7 +73,7 @@ class SentenceAnalyzer:
                 i += length
                 continue
 
-            # 2) check if contractive phrases
+            # 3) check if contractive phrases
             is_contractive, length, corrections = self._check_contractive(i)
             if is_contractive:
                 self._sentiments.append(
@@ -86,7 +85,7 @@ class SentenceAnalyzer:
                 i += length
                 continue
 
-            # 3) check if it is negate phrase
+            # 4) check if it is negate phrase
             is_negate, length, corrections = self._check_negate(i)
             if is_negate:
                 self._sentiments.append(
@@ -98,7 +97,7 @@ class SentenceAnalyzer:
                 i += length
                 continue
 
-            # 4) check if it contains booster phrase
+            # 5) check if it contains booster phrase
             booster_score, length, corrections = self._check_booster(i)
             if booster_score is not False:
                 self._sentiments.append(
@@ -132,6 +131,20 @@ class SentenceAnalyzer:
 
         return cls.__default_lexicon
 
+    @property
+    def matcher(self):
+        if self._matcher:
+            return self._matcher
+
+        return self._default_matcher(self.lexicon)
+
+    @classmethod
+    def _default_matcher(cls, lexicon):
+        if not cls.__default_matcher:
+            cls.__default_matcher = build_matcher(nlp, lexicon)
+
+        return cls.__default_matcher
+
     def _apply_contractive(self):
         contractives = (sentiment for sentiment in self._sentiments
                         if sentiment['type'] == TokenType.CONTRACTIVE)
@@ -146,6 +159,17 @@ class SentenceAnalyzer:
                 sentiment['score'] *= 0.5
             elif sentiment['pos'] > contractive['pos']:
                 sentiment['score'] *= 1.5
+
+    def _check_exception(self, current):
+        term_1 = self.text[current]
+        term_2 = self.text[current
+                           + 1] if current + 1 < len(self.text) else None
+        if term_1.lemma_ == 'please' and term_1._.pos == 'INTJ':
+            return (True, 1)
+        elif term_1.lemma_ in ['no', 'none'] and term_2 and term_2.is_punct:
+            return (True, 2)
+
+        return (False, 0)
 
     def _check_booster(self, current):
         for phrase, score in self.lexicon.boosters.items():
@@ -164,8 +188,8 @@ class SentenceAnalyzer:
         if current + 1 < len(self.text):
             term_1 = self.text[current]
             term_2 = self.text[current + 1]
-            if (term_2.lemma_ == 'not' and term_2.pos_ == 'ADV'
-                    and term_1.pos_ == 'VERB'
+            if (term_2.lemma_ == 'not' and term_2._.pos == 'ADV'
+                    and term_1._.pos == 'VERB'
                     and term_1.lemma_ in self.lexicon.negate_verbs):
                 return (True, 2, None)
 
@@ -182,10 +206,14 @@ class SentenceAnalyzer:
     def _add_word_sentiment(self, current):
         word = self.text[current]
 
-        if word.pos_ in [
-                'SPACE', 'ADP', 'CONJ', 'CCONJ', 'DET', 'NUM', 'PART', 'SCONJ',
+        if word._.pos in [
+                'SPACE', 'ADP', 'CONJ', 'CCONJ', 'NUM', 'PART', 'SCONJ',
                 'PRON'
-        ]:
+        ] or word.ent_type > 0:
+            return
+
+        # spacy sometimes detect no as det
+        if word._.pos == 'DET' and word.lemma_ != 'no':
             return
 
         word, corrections = self._correct(self.text[current])
@@ -359,6 +387,7 @@ class SentenceAnalyzer:
 
     def _tokenize(self, raw_text):
         toks = nlp(raw_text)
+        matcher = self.matcher
         matcher(toks)
         return toks
 

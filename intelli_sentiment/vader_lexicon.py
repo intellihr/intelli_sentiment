@@ -12,7 +12,7 @@ logger.addHandler(logging.NullHandler())
 
 NEGATES = [
     "neither", "never", "none", "nope", "nor", "nothing", "nowhere", "uhuh",
-    "without", "rarely", "seldom", "despite", "least", "not", "no"
+    "without", "rarely", "seldom", "despite", "least", "not"
 ]
 
 NEGATE_VERBS = [

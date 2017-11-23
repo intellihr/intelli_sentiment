@@ -34,16 +34,19 @@ def run_evaluation(dataset_file, predictor):
 
 
 def read_dataset(dataset_file):
-    file_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), dataset_file)
+    _file_path = file_path(dataset_file)
 
     records = []
-    with open(file_path) as dataset_file:
+    with open(_file_path) as dataset_file:
         reader = csv.reader(dataset_file, delimiter='\t')
         for row in reader:
             records.append((float(row[0]), row[1]))
 
     return records
+
+
+def file_path(file):
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), file)
 
 
 class Evaluation:
