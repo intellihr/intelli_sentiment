@@ -8,4 +8,5 @@ the shit	3
 very least	0
 yeah right	-2
 knock on effect	-1
-too early	-0.5
+too early	-0.2
+let down	-2

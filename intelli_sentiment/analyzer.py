@@ -168,6 +168,8 @@ class SentenceAnalyzer:
             return (True, 1)
         elif term_1.lemma_ in ['no', 'none'] and term_2 and term_2.is_punct:
             return (True, 2)
+        elif term_1.lemma_ == 'certain' and term_1._.pos == 'ADJ':
+            return (True, 1)
 
         return (False, 0)
 
@@ -207,10 +209,17 @@ class SentenceAnalyzer:
         word = self.text[current]
 
         if word._.pos in [
-                'SPACE', 'ADP', 'CONJ', 'CCONJ', 'NUM', 'PART', 'SCONJ',
-                'PRON'
-        ] or word.ent_type > 0:
+                'SPACE', 'ADP', 'CONJ', 'CCONJ', 'NUM', 'PART', 'SCONJ', 'PRON'
+        ]:
             return
+
+        # handle "is COOL or Nice", might deal using training based method
+        if word.ent_type > 0:
+            last_texts = [
+                self.text[current - i] for i in range(1, 5) if current - i > 0
+            ]
+            if all(t.lemma_ != 'be' for t in last_texts):
+                return
 
         # spacy sometimes detect no as det
         if word._.pos == 'DET' and word.lemma_ != 'no':

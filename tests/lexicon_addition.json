@@ -3,6 +3,10 @@
     "re-visit": -1.0,
     "sufficient": 1.5,
     "sufficiently": 1.5,
-    "feeling": 0
+    "feeling": 0,
+    "tiring": -1.9,
+    "excessive": -0.5,
+    "retraining": -0.5,
+    "retrain": -0.5
   }
 }
