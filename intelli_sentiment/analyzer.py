@@ -536,24 +536,44 @@ def fabs_div(sum, total):
 
 
 def _paragraph_tokenizer(text):
-    """
-    break up text by 'however'
-    """
     for sent in nlp(text).sents:
-        sent_text = sent.text.strip()
-        matches = re.match(r'(.+)([^a-zA-Z\d]\s*however\s*)(.+)', sent_text)
+        # split text by list style
+        for sent_text in _break_lines_by_structure(sent.text):
+            if len(sent_text) <= 0:
+                continue
 
-        if matches:
-            yield matches[1]
-            yield matches[3]
-            continue
+            matches = re.match(r'(.+)([^a-zA-Z\d]\s*however\s*)(.+)',
+                               sent_text)
 
-        matches = re.match(r'(.+)(\s*but\s*)(.+)(\s*so that\s*)(.+)',
-                           sent_text)
-        if matches:
-            yield matches[1]
-            yield matches[3]
-            yield matches[5]
-            continue
+            if matches:
+                yield _cleanse(matches[1])
+                yield _cleanse(matches[3])
+                continue
 
-        yield sent_text
+            matches = re.match(r'(.+)(\s*but\s*)(.+)(\s*so that\s*)(.+)',
+                               sent_text)
+            if matches:
+                yield _cleanse(matches[1])
+                yield _cleanse(matches[3])
+                yield _cleanse(matches[5])
+                continue
+
+            yield _cleanse(sent_text)
+
+
+def _break_lines_by_structure(text):
+    return _split(text, '^\s*[0-9-*•]+[.,]?\s*', '\n\n+', '^\s+')
+
+
+def _split(text, *regexes):
+    toks = [text]
+    for regex in regexes:
+        _toks = []
+        for tok in toks:
+            for t in re.split(regex, tok, flags=re.MULTILINE):
+                t = t.strip()
+                if len(t) > 0:
+                    _toks.append(t)
+        toks = _toks
+
+    return toks

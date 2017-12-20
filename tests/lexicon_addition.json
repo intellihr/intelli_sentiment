@@ -7,6 +7,9 @@
     "tiring": -1.9,
     "excessive": -0.5,
     "retraining": -0.5,
-    "retrain": -0.5
+    "retrain": -0.5,
+    "disgruntled": -2.2,
+    "disgruntle": -2.2,
+    "disgruntling": -2.2
   }
 }

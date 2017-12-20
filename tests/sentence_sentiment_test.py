@@ -15,7 +15,6 @@ def test_basic_positives():
         'Make sure you :) or :D today!',
         "Today only kinda sux! But I'll get by, lol"
     ]
-    logging.info('test')
     for sentence in sentences:
         assert_pos(sentence)
 
