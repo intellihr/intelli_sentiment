@@ -62,3 +62,4 @@ target/
 .ipynb_checkpoints
 TODO
 .DS_Store
+.model

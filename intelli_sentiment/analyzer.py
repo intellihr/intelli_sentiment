@@ -1,3 +1,4 @@
+import os
 import re
 import math
 import logging
@@ -20,7 +21,7 @@ N_SCALAR = -0.74
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-nlp = spacy.load('en')
+nlp = spacy.load(os.environ.get('SPACY_MODEL', 'en'))
 Token.set_extension('_custom_pos', default=None)
 Token.set_extension(
     'pos', getter=lambda token: token._._custom_pos or token.pos_)
@@ -401,7 +402,7 @@ class SentenceAnalyzer:
         return toks
 
 
-Score = namedtuple('Score', 'pos neg neu compound')
+Score = namedtuple('Score', 'pos neg neu compound hybrid')
 
 
 class SentenceResult:
@@ -434,14 +435,16 @@ class SentenceResult:
                     neg_sum -= punct_emph_amplifier
 
                 total = pos_sum + math.fabs(neg_sum) + neu_count
-
+                compound = _normalize(sum_s)
                 self._scores = Score(
                     round(fabs_div(pos_sum, total), 3),
                     round(fabs_div(neg_sum, total), 3),
                     round(fabs_div(neu_count, total), 3),
-                    round(_normalize(sum_s), 3))
+                    round(compound, 3),
+                    round(self._compute_hybrid(compound), 3))
             else:
-                self._scores = Score(0.0, 0.0, 0.0, 0.0)
+                self._scores = Score(0.0, 0.0, 0.0, 0.0,
+                                     round(self._compute_hybrid(0.0), 3))
 
         return self._scores
 
@@ -478,6 +481,16 @@ class SentenceResult:
                 neu_count += 1
         return pos_sum, neg_sum, neu_count
 
+    def _compute_hybrid(self, compound):
+        cat_score = self.text.cats.get('NOT_ENOUGH_PAY', None)
+        if cat_score is None or cat_score <= 0.5:
+            return compound
+
+        if compound < 0:
+            return compound
+
+        return compound * 0.5 + (cat_score - 0.5) * -1
+
     def debug(self):
         debugs = []
         for sent in self.sentiments:
@@ -493,9 +506,9 @@ def sentence_sentiment(text, **kwargs):
     return result.scores
 
 
-def paragraph_sentiment(text, alpha=0.87, **kwargs):
+def paragraph_sentiment(text, alpha=0.87, method='hybrid', **kwargs):
     scores = [
-        sentence_sentiment(tok, **kwargs).compound
+        getattr(sentence_sentiment(tok, **kwargs), method)
         for tok in _paragraph_tokenizer(text)
     ]
     negatives = [s for s in scores if s < 0]
@@ -577,3 +590,7 @@ def _split(text, *regexes):
         toks = _toks
 
     return toks
+
+
+def _cleanse(text):
+    return re.sub(r'([^\s]+)(/)([^\s]+)', r'\1 / \3', text)
